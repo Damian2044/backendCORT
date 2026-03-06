@@ -11,7 +11,7 @@ class ExtractorLaionCLIP:
     """
     def __init__(self, 
                  usar_gpu: bool = True, 
-                 modelo: str = "hf-hub:laion/CLIP-ViT-B-32-laion2B-s34B-b79K",
+                 modelo: str = "ViT-B-32",
                  normalizar: bool = True):
  
 
@@ -24,7 +24,7 @@ class ExtractorLaionCLIP:
         else:
             self.dispositivo = torch.device("cpu")
 
-        self.modelo, _, self.preprocesamiento = open_clip.create_model_and_transforms(self.modelo_nombre)
+        self.modelo, _, self.preprocesamiento = open_clip.create_model_and_transforms(self.modelo_nombre,pretrained="openai")
         self.modelo = self.modelo.to(self.dispositivo).eval()
 
         self.tokenizer = open_clip.get_tokenizer(self.modelo_nombre)
@@ -98,24 +98,3 @@ class ExtractorLaionCLIP:
         
         return self._procesar_embedding(embedding)[0]
 
-#Prueba rápida
-if __name__ == "__main__":
-    #Medir el tiempo de extracción de texto
-    
-    extractor = ExtractorLaionCLIP()
-    import time
-    inicio = time.time()
-    texto = "Hola mi nombre es ChatGPT y estoy probando la extracción de embeddings con LAION-CLIP"
-    print(f"Longitud del texto: {len(texto)} caracteres")
-    embedding_texto = extractor.extraer_embedding_texto(texto)
-    fin = time.time()
-    texto ="Hello my name is ChatGPT and I am testing embedding extraction with LAION-CLIP"
-    embedding_texto2 = extractor.extraer_embedding_texto(texto)
-    #print("Embedding de texto 2:", embedding_texto2)
-    print("Similitud coseno entre los textos:", np.dot(embedding_texto, embedding_texto2) / (np.linalg.norm(embedding_texto) * np.linalg.norm(embedding_texto2)))
-    print(f"Tiempo de extracción de texto: {fin - inicio:.4f} segundos")
-    # Para probar con una imagen, descomenta lo siguiente y asegúrate de tener una imagen válida
-    # import cv2
-    # imagen = cv2.imread("ruta/a/tu/imagen.jpg")
-    # embedding_imagen = extractor.extraer_embedding_imagen(imagen)
-    # print("Embedding de imagen:", embedding_imagen)
