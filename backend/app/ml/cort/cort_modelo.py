@@ -144,7 +144,7 @@ class CORTModelo:
         """Construye payload estandar de salida."""
         return {
             "etiqueta_asignada": int(etiqueta_asignada),
-            "punto_procesado": punto.copy(),
+            #"punto_procesado": punto.copy(),
             "k_fundados": int(self._modelo_cort.KFundados),
             "tamanios_actuales": self.tamanios_actuales.copy(),
             "cardinalidades": self.cardinalidades.copy(),

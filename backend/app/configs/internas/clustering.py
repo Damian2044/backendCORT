@@ -12,4 +12,4 @@ metricas_aproximadas_por_defecto: bool = True
 guardar_puntos_por_defecto: bool = False
 
 # Tiempo maximo de inactividad permitido para una sesion.
-ttl_sesion_segundos: int = 3600
+ttl_sesion_segundos: int = 300

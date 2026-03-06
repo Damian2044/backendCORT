@@ -86,7 +86,7 @@ class SesionClustering:
         data["pca_habilitado"] = bool(info_pca.get("pca_habilitado", False))
         data["pca_listo"] = bool(info_pca.get("pca_listo", False))
         data["escalado_habilitado"] = self.escalador_online.habilitado
-        data["punto_real"] = punto.copy()
+        #data["punto_real"] = punto.copy()
         data["punto_pca"] = info_pca.get("punto_pca")
         data["centroides_modelo"] = centroides_modelo.copy()
         data["centroides_pca"] = centroides_pca
