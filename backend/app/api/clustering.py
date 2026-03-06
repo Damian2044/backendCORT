@@ -15,16 +15,13 @@ from app.schemas.api_response import ApiResponse
 router = APIRouter(prefix="/cort", tags=["clustering"])
 
 
-def _parse_etiqueta_real(etiqueta_real: Optional[str]) -> object:
+def _normalizar_etiqueta_real(etiqueta_real: object) -> Optional[str]:
     if etiqueta_real is None:
         return None
-    texto = etiqueta_real.strip()
+    texto = str(etiqueta_real).strip()
     if texto == "":
         return None
-    try:
-        return int(texto)
-    except Exception:
-        return texto
+    return texto
 
 
 @router.post("/sesiones/{sesion_id}/puntos/datasets", response_model=ApiResponse[dict])
@@ -36,7 +33,7 @@ def agregar_punto_dataset(
     resultado = servicio_clustering.agregar_punto_dataset(
         sesion_id=sesion_id,
         vector=payload.vector,
-        etiqueta_real=payload.etiqueta_real,
+        etiqueta_real=_normalizar_etiqueta_real(payload.etiqueta_real),
     )
     return ApiResponse(**resultado)
 
@@ -51,7 +48,7 @@ def agregar_punto_texto(
     resultado = servicio_clustering.agregar_punto_texto(
         sesion_id=sesion_id,
         texto=payload.texto,
-        etiqueta_real=payload.etiqueta_real,
+        etiqueta_real=_normalizar_etiqueta_real(payload.etiqueta_real),
         extractor_embeddings=extractor_embeddings,
     )
     return ApiResponse(**resultado)
@@ -76,7 +73,7 @@ async def agregar_punto_imagen(
     resultado = servicio_clustering.agregar_punto_imagen(
         sesion_id=sesion_id,
         imagen_bytes=imagen_bytes,
-        etiqueta_real=_parse_etiqueta_real(etiqueta_real),
+        etiqueta_real=_normalizar_etiqueta_real(etiqueta_real),
         extractor_embeddings=extractor_embeddings,
     )
     return ApiResponse(**resultado)
