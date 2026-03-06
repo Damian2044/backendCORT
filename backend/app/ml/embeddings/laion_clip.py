@@ -2,87 +2,106 @@ from __future__ import annotations
 from PIL import Image
 from io import BytesIO
 import numpy as np
-import base64
-import os
-import requests
+import open_clip
+import torch
+
 
 class ExtractorLaionCLIP:
     """
-    Extractor de embeddings multimodal usando Jina CLIP API (gratuita).
-    Misma interfaz que la versión CLIP original.
+    Extractor de embeddings con LAION-CLIP (OpenCLIP).
     """
-    def __init__(self, 
-                 usar_gpu: bool = True,  # ignorado, se mantiene por compatibilidad
-                 modelo: str = "jina-clip-v2",
-                 normalizar: bool = True):
-
+    def __init__(
+        self,
+        usar_gpu: bool = True,
+        modelo: str = "hf-hub:laion/CLIP-ViT-B-32-laion2B-s34B-b79K",
+        normalizar: bool = True
+    ):
         self.modelo_nombre = modelo
         self.normalizar = normalizar
-        self.api_key = os.environ.get("JINA_API_KEY", "")
-        self.url = "https://api.jina.ai/v1/embeddings"
 
-    def _normalizar(self, vec: np.ndarray) -> np.ndarray:
-        norma = np.linalg.norm(vec)
-        if norma < 1e-12:
-            return vec
-        return (vec / norma).astype(np.float32)
+        if usar_gpu and torch.cuda.is_available():
+            self.dispositivo = torch.device("cuda")
+        else:
+            self.dispositivo = torch.device("cpu")
+
+        self.modelo, _, self.preprocesamiento = open_clip.create_model_and_transforms(
+            self.modelo_nombre
+        )
+        self.modelo = self.modelo.to(self.dispositivo).eval()
+        self.tokenizer = open_clip.get_tokenizer(self.modelo_nombre)
 
     def _to_pil(self, imagen) -> Image.Image:
+        """Convierte una imagen dada como NumPy array, bytes o PIL Image a PIL Image RGB."""
         if isinstance(imagen, Image.Image):
             return imagen.convert("RGB")
+
         if isinstance(imagen, np.ndarray):
+            if imagen.ndim not in (2, 3):
+                raise ValueError("Array de imagen inválido.")
+
             if imagen.ndim == 3:
                 if imagen.shape[2] == 4:
                     imagen = imagen[:, :, :3]
-                elif imagen.shape[2] == 3:
-                    imagen = imagen[:, :, ::-1]
-            if imagen.dtype != np.uint8:
-                imagen = imagen.astype(np.uint8)
+                elif imagen.shape[2] != 3:
+                    raise ValueError("La imagen debe tener 3 o 4 canales.")
+
+            if np.issubdtype(imagen.dtype, np.floating):
+                minimo = float(imagen.min()) if imagen.size > 0 else 0.0
+                maximo = float(imagen.max()) if imagen.size > 0 else 0.0
+
+                if 0.0 <= minimo and maximo <= 1.0:
+                    imagen = (imagen * 255).clip(0, 255).astype(np.uint8)
+                else:
+                    imagen = imagen.clip(0, 255).astype(np.uint8)
+
+            elif imagen.dtype != np.uint8:
+                imagen = imagen.clip(0, 255).astype(np.uint8)
+
             return Image.fromarray(imagen).convert("RGB")
+
         if isinstance(imagen, bytes):
             return Image.open(BytesIO(imagen)).convert("RGB")
+
         raise ValueError(f"Tipo no soportado: {type(imagen)}")
 
-    def _llamar_api(self, input_data: list) -> np.ndarray | None:
-        try:
-            headers = {
-                "Authorization": f"Bearer {self.api_key}",
-                "Content-Type": "application/json"
-            }
-            response = requests.post(
-                self.url,
-                headers=headers,
-                json={"model": self.modelo_nombre, "input": input_data}
-            )
-            response.raise_for_status()
-            vec = np.array(response.json()["data"][0]["embedding"], dtype=np.float32)
-            if self.normalizar:
-                vec = self._normalizar(vec)
-            return vec
-        except Exception as e:
-            print(f">>> ERROR Jina API: {repr(e)}")
-            return None
+    def _procesar_embedding(self, embedding) -> np.ndarray:
+        """
+        - Normaliza L2 (opcional)
+        - Convierte a numpy float32
+        """
+        if self.normalizar:
+            embedding = embedding / embedding.norm(dim=-1, keepdim=True).clamp_min(1e-12)
+
+        return embedding.detach().cpu().float().numpy().astype(np.float32)
 
     def extraer_embedding_imagen(self, imagen) -> np.ndarray | None:
-        """Extrae el embedding de una imagen usando Jina CLIP API."""
+        """Extrae el embedding de una imagen dada."""
         try:
             imagen_pil = self._to_pil(imagen)
-        except Exception as e:
-            print(f">>> ERROR _to_pil: {repr(e)}")
+            imagen_procesada = self.preprocesamiento(imagen_pil).unsqueeze(0).to(self.dispositivo)
+
+            with torch.inference_mode():
+                embedding = self.modelo.encode_image(imagen_procesada)
+
+            return self._procesar_embedding(embedding)[0]
+        except Exception:
             return None
-
-        buffer = BytesIO()
-        imagen_pil.save(buffer, format="JPEG")
-        b64 = base64.b64encode(buffer.getvalue()).decode("utf-8")
-
-        return self._llamar_api([{"image": b64}])
 
     def extraer_embedding_texto(self, texto: str) -> np.ndarray | None:
-        """Extrae el embedding de un texto dado usando Jina CLIP API."""
+        """Extrae el embedding de un texto dado."""
         if texto is None:
             return None
+
         texto = texto.strip()
         if texto == "":
             return None
 
-        return self._llamar_api([{"text": texto}])
+        try:
+            tokens = self.tokenizer([texto]).to(self.dispositivo)
+
+            with torch.inference_mode():
+                embedding = self.modelo.encode_text(tokens)
+
+            return self._procesar_embedding(embedding)[0]
+        except Exception:
+            return None

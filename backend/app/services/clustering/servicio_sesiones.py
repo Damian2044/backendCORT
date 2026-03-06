@@ -50,8 +50,6 @@ class SesionClustering:
     modelo: CORTModelo = field(init=False)
     escalador_online: EscaladorOnline = field(init=False)
     pca_online: PCAOnline = field(init=False)
-    puntos_aceptados: int = 0
-    puntos_rechazados: int = 0
     instante_creacion_monotonic: float = field(default_factory=marca_tiempo_monotonic)
     ultima_actividad_monotonic: float = field(init=False)
 
@@ -74,10 +72,6 @@ class SesionClustering:
         info_pca = self.pca_online.observar(punto_escalado)
 
         respuesta = self.modelo.asignar_punto(punto_escalado, etiqueta_real=etiqueta_real)
-        if bool(respuesta.get("success", False)):
-            self.puntos_aceptados += 1
-        else:
-            self.puntos_rechazados += 1
 
         data = dict(respuesta.get("data", {}))
         centroides_modelo = self.modelo.centroides_activos
@@ -88,7 +82,7 @@ class SesionClustering:
         data["escalado_habilitado"] = self.escalador_online.habilitado
         #data["punto_real"] = punto.copy()
         data["punto_pca"] = info_pca.get("punto_pca")
-        data["centroides_modelo"] = centroides_modelo.copy()
+        #data["centroides_modelo"] = centroides_modelo.copy()
         data["centroides_pca"] = centroides_pca
         return {
             "success": bool(respuesta.get("success", False)),

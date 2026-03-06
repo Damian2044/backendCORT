@@ -49,20 +49,41 @@ class PCAOnline:
         self._pca: Optional[IncrementalPCA] = None
         self._buffer_inicio: list[np.ndarray] = []
         self._buffer_actualizacion: list[np.ndarray] = []
+        self._dimension_entrada: Optional[int] = None
+        self._modo_directo: bool = False
 
     @property
     def listo(self) -> bool:
-        return self._pca is not None
+        return self._modo_directo or self._pca is not None
 
     def observar(self, punto: np.ndarray) -> dict:
         if not self.habilitado:
             return {"pca_habilitado": False, "pca_listo": False, "punto_pca": None}
 
-        punto_2d = punto.reshape(1, -1)
+        punto_np = np.asarray(punto, dtype=float).reshape(-1)
+        dimension_actual = int(punto_np.shape[0])
+        if self._dimension_entrada is None:
+            self._dimension_entrada = dimension_actual
+        elif dimension_actual != self._dimension_entrada:
+            return {"pca_habilitado": True, "pca_listo": self.listo, "punto_pca": None}
+
+        if dimension_actual <= 2:
+            self._modo_directo = True
+            self._pca = None
+            self._buffer_inicio.clear()
+            self._buffer_actualizacion.clear()
+            return {
+                "pca_habilitado": True,
+                "pca_listo": True,
+                "punto_pca": punto_np.copy(),
+            }
+
+        self._modo_directo = False
+        punto_2d = punto_np.reshape(1, -1)
         punto_pca: Optional[np.ndarray] = None
 
         if self._pca is None:
-            self._buffer_inicio.append(punto.copy())
+            self._buffer_inicio.append(punto_np.copy())
             if len(self._buffer_inicio) >= 2:
                 lote_inicio = np.vstack(self._buffer_inicio)
                 n_componentes = max(1, min(2, lote_inicio.shape[1], lote_inicio.shape[0]))
@@ -72,7 +93,7 @@ class PCAOnline:
                 punto_pca = self._pca.transform(punto_2d)[0]
         else:
             punto_pca = self._pca.transform(punto_2d)[0]
-            self._buffer_actualizacion.append(punto.copy())
+            self._buffer_actualizacion.append(punto_np.copy())
             minimo_lote = max(2, int(getattr(self._pca, "n_components_", 2)))
             if len(self._buffer_actualizacion) >= minimo_lote:
                 lote = np.vstack(self._buffer_actualizacion)
@@ -86,8 +107,23 @@ class PCAOnline:
         }
 
     def transformar_centroides(self, centroides: np.ndarray) -> Optional[np.ndarray]:
-        if not self.habilitado or self._pca is None:
+        if not self.habilitado:
             return None
-        if centroides.size == 0:
+
+        centroides_np = np.asarray(centroides, dtype=float)
+        if centroides_np.size == 0:
+            if self._modo_directo and self._dimension_entrada is not None:
+                return np.empty((0, self._dimension_entrada), dtype=float)
+            if self._pca is None:
+                return None
             return np.empty((0, int(getattr(self._pca, "n_components_", 0))), dtype=float)
-        return self._pca.transform(np.asarray(centroides, dtype=float))
+
+        if centroides_np.ndim != 2:
+            return None
+        if self._dimension_entrada is not None and centroides_np.shape[1] != self._dimension_entrada:
+            return None
+        if self._modo_directo:
+            return centroides_np.copy()
+        if self._pca is None:
+            return None
+        return self._pca.transform(centroides_np)
