@@ -1,0 +1,11 @@
+services:
+  backend:
+    container_name: ${NOMBRE_CONTENEDOR_BACKEND:-backend}
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    ports:
+      - "${PUERTO_BACKEND_HOST:-8000}:${PUERTO_BACKEND_CONTENEDOR:-8000}"
+    environment:
+      PYTHONUNBUFFERED: "${PYTHON_SIN_BUFFER:-1}"
+    restart: unless-stopped
