@@ -114,7 +114,7 @@ class ExtractorJinaCLIP:
 
             b64 = base64.b64encode(buffer.getvalue()).decode("utf-8")
 
-            return self._llamar_api([{"bytes": b64}])
+            return self._llamar_api([{"image": f"data:image/jpeg;base64,{b64}"}])
 
         except Exception as e:
             print(f">>> ERROR procesando imagen: {repr(e)}")
