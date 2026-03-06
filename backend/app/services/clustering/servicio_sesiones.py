@@ -102,7 +102,7 @@ class SesionClustering:
         data["escalado_habilitado"] = self.escalador_online.habilitado
         data["pca_habilitado"] = self.pca_online.habilitado
         data["pca_listo"] = self.pca_online.listo
-        data["centroides_modelo"] = centroides_modelo.copy()
+        #data["centroides_modelo"] = centroides_modelo.copy()
         data["centroides_pca"] = centroides_pca
         return {
             "success": bool(respuesta.get("success", False)),
