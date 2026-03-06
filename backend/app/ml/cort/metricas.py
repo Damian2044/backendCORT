@@ -32,6 +32,7 @@ class Metricas:
         self.medias_por_cluster: Optional[np.ndarray] = None
         self.sumas_desviaciones_cuadradas_por_cluster: Optional[np.ndarray] = None
         self.dimension_vector: Optional[int] = None
+        self.radios_maximos_por_cluster = np.zeros(self.num_clusters, dtype=float)
 
         self.etiquetas_por_cluster = np.empty(self.num_clusters, dtype=object)
         self.puntos_por_cluster = np.empty(self.num_clusters, dtype=object)
@@ -107,6 +108,7 @@ class Metricas:
         etiqueta_asignada: int,
         etiqueta_real: object,
         centroides_activos: np.ndarray,
+        distancia_centroide_referencia: Optional[float] = None,
     ) -> None:
         """Registra resultado para metricas internas sin duplicar estado de etiquetas globales."""
         indice_cluster = int(etiqueta_asignada)
@@ -118,6 +120,11 @@ class Metricas:
             self.puntos_por_cluster[indice_cluster].append(punto_np.copy())
         self._registrar_etiqueta(indice_cluster, etiqueta_real)
         self._actualizar_estadisticos_cluster(indice_cluster, punto_np)
+        if distancia_centroide_referencia is not None and np.isfinite(distancia_centroide_referencia):
+            self.radios_maximos_por_cluster[indice_cluster] = max(
+                float(self.radios_maximos_por_cluster[indice_cluster]),
+                float(max(distancia_centroide_referencia, 0.0)),
+            )
 
     def _silueta_aproximada(self, num_activos: int, tamanios_actuales: np.ndarray) -> float:
         """
@@ -184,18 +191,20 @@ class Metricas:
 
         return float(acumulado / conteo_total) if conteo_total > 0.0 else 0.0
 
-    def _dunn_aproximado(self, num_activos: int, tamanios_actuales: np.ndarray) -> float:
+    def _dunn_aproximado(
+        self,
+        centroides_activos: np.ndarray,
+        num_activos: int,
+        tamanios_actuales: np.ndarray,
+    ) -> float:
         """
         Dunn aproximado sin guardar puntos.
 
-        - radio_c ~= sqrt(var_total_c)
-        - separacion(i,j) ~= max(||mu_i - mu_j|| - (radio_i + radio_j), 0)
-        - diametro ~= 2 * max(radio_c)
+        Proxy online simple:
+        - separacion ~= minima distancia entre centroides activos
+        - diametro ~= 2 * radio_maximo_observado del cluster
         """
         if num_activos < 2:
-            return 0.0
-
-        if self.medias_por_cluster is None:
             return 0.0
 
         clusters_activos = [
@@ -206,32 +215,28 @@ class Metricas:
         if len(clusters_activos) < 2:
             return 0.0
 
-        medias_por_cluster = {indice: self._media_cluster(indice) for indice in clusters_activos}
-        radios_aprox_por_cluster = {
-            indice: float(np.sqrt(max(self._varianza_total_cluster(indice), 0.0)))
-            for indice in clusters_activos
-        }
-
         separacion_minima = np.inf
         for posicion_a, indice_a in enumerate(clusters_activos):
-            media_a = medias_por_cluster.get(indice_a)
-            if media_a is None:
-                continue
             for indice_b in clusters_activos[posicion_a + 1 :]:
-                media_b = medias_por_cluster.get(indice_b)
-                if media_b is None:
-                    continue
-                distancia_centroides = float(np.linalg.norm(media_a - media_b))
-                separacion = max(
-                    distancia_centroides - (radios_aprox_por_cluster[indice_a] + radios_aprox_por_cluster[indice_b]),
-                    0.0,
+                separacion_minima = min(
+                    separacion_minima,
+                    float(
+                        np.linalg.norm(
+                            np.asarray(centroides_activos[indice_a], dtype=float)
+                            - np.asarray(centroides_activos[indice_b], dtype=float)
+                        )
+                    ),
                 )
-                separacion_minima = min(separacion_minima, separacion)
 
         if not np.isfinite(separacion_minima):
             return 0.0
 
-        diametro_maximo = float(2.0 * max(radios_aprox_por_cluster.values())) if radios_aprox_por_cluster else 0.0
+        diametro_maximo = float(
+            2.0 * max(
+                (float(self.radios_maximos_por_cluster[indice]) for indice in clusters_activos),
+                default=0.0,
+            )
+        )
 
         if diametro_maximo > 0.0 and np.isfinite(separacion_minima):
             return float(separacion_minima / diametro_maximo)
@@ -305,7 +310,7 @@ class Metricas:
 
         if usar_aproximadas or not self.guardar_puntos:
             resultado["silueta"] = self._silueta_aproximada(num_activos, tamanios_np)
-            resultado["dunn"] = self._dunn_aproximado(num_activos, tamanios_np)
+            resultado["dunn"] = self._dunn_aproximado(centroides_activos, num_activos, tamanios_np)
             return resultado
 
         resultado["silueta"] = self._silueta_exacta(num_activos)

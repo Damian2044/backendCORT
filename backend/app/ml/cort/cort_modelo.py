@@ -163,13 +163,13 @@ class CORTModelo:
         """
         try:
             punto = self._normalizar_punto(nuevo_punto)
-            centroides = self.centroides_activos
-            if centroides.size > 0 and punto.shape[0] != centroides.shape[1]:
+            centroides_antes = self.centroides_activos
+            if centroides_antes.size > 0 and punto.shape[0] != centroides_antes.shape[1]:
                 return self._respuesta_error(
                     "Dimension inconsistente con los centroides activos.",
                     {
                         "dimension_punto": int(punto.shape[0]),
-                        "dimension_esperada": int(centroides.shape[1]),
+                        "dimension_esperada": int(centroides_antes.shape[1]),
                         "k_fundados": int(self._modelo_cort.KFundados),
                     },
                 )
@@ -177,11 +177,18 @@ class CORTModelo:
             etiqueta_asignada = int(self._modelo_cort.procesarPunto(punto))
             self._registrar_estado_etiquetas(etiqueta_real=etiqueta_real, etiqueta_asignada=etiqueta_asignada)
 
+            distancia_centroide_referencia: Optional[float] = None
+            if 0 <= etiqueta_asignada < int(centroides_antes.shape[0]):
+                distancia_centroide_referencia = float(
+                    np.linalg.norm(punto - np.asarray(centroides_antes[etiqueta_asignada], dtype=float))
+                )
+
             self._metricas.registrar_resultado(
                 punto=punto,
                 etiqueta_asignada=etiqueta_asignada,
                 etiqueta_real=etiqueta_real,
                 centroides_activos=self.centroides_activos,
+                distancia_centroide_referencia=distancia_centroide_referencia,
             )
 
             data = self._armar_data_respuesta(punto, etiqueta_asignada)

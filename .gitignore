@@ -1,20 +1,24 @@
 # Python
 __pycache__/
 *.pyc
+*.pyo
+*.pyd
+
+# Virtual environments
+venv/
+.env
 
 # VSCode
 .vscode/
+
+# OS
+.DS_Store
+Thumbs.db
 
 # Archivos grandes del proyecto
 Barahona_Flores_Licto_Macas_Tandazo_Torres_ProyectoIntegradorVCML.pdf
 Barahona_Flores_Licto_Macas_Tandazo_Torres_ProyectoIntegradorVCML.zip
 
 # Carpetas que no quieres subir
-CORT/
-ProyectoIntegradorApp/*
-
-# Archivos temporales
-backend/app/ml/embeddings/__pycache__/
-
-# Otros
-__init__.py
+/CORT/
+/ProyectoIntegradorApp
