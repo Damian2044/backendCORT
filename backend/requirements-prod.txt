@@ -1,0 +1,16 @@
+--extra-index-url https://download.pytorch.org/whl/cpu
+
+fastapi[standard]==0.111.0
+uvicorn==0.30.1
+pydantic==2.7.4
+pydantic-settings==2.3.4
+numpy==1.26.4
+python-dotenv==1.0.1
+pillow==10.3.0
+
+torch==2.5.1+cpu
+torchvision==0.20.1+cpu
+open-clip-torch==2.24.0
+
+scikit-learn==1.4.2
+river==0.22.0
